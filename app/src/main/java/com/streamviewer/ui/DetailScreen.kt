@@ -14,11 +14,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.BorderStroke
 import com.streamviewer.api.NetworkClient
 import com.streamviewer.data.Episode
 import com.streamviewer.data.Season
 import com.streamviewer.data.FavoriteRequest
+import com.streamviewer.data.PlaybackEntry
 import com.streamviewer.data.PlaybackSaveRequest
 import kotlinx.coroutines.launch
 import java.net.URLEncoder
@@ -30,7 +33,7 @@ import java.nio.charset.StandardCharsets
 fun DetailScreen(
     type: String, // "movie" or "series"
     id: Int,
-    onPlay: (String) -> Unit,
+    onPlay: (String, Long) -> Unit, // Updated signature
     onBack: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -48,7 +51,10 @@ fun DetailScreen(
 
     // User State
     var isFavorite by remember { mutableStateOf(false) }
-    var isInWatchlist by remember { mutableStateOf(false) }
+    var playbackEntry by remember { mutableStateOf<PlaybackEntry?>(null) }
+    var activeEpisode by remember { mutableStateOf<Episode?>(null) }
+    var showOverwriteDialog by remember { mutableStateOf(false) }
+    var pendingPlayUrl by remember { mutableStateOf<String?>(null) }
 
     val mediaKey = "$type:$id"
 
@@ -83,7 +89,33 @@ fun DetailScreen(
             // Check Watchlist
             val watchResponse = NetworkClient.getApi().getWatchlist(if(type=="series") "series" else "movies")
              if (watchResponse.isSuccessful) {
-                isInWatchlist = watchResponse.body()?.any { it.media_key == mediaKey } == true
+                 val entries = watchResponse.body() ?: emptyList()
+                 playbackEntry = entries.find { it.media_key == mediaKey }
+
+                 // If series, try to find the active episode and set season
+                 if (type == "series" && playbackEntry != null) {
+                     val entryFile = playbackEntry?.file
+                     if (entryFile != null) {
+                        // Iterate all episodes to find matching file/ID
+                        // Assuming file contains episode ID e.g. "123.mkv" or just "123"
+                        var foundEpisode: Episode? = null
+
+                        // We need to search through all values in episodesMap
+                        for ((_, eps) in episodesMap) {
+                            foundEpisode = eps.find { ep ->
+                                // Check if entryFile matches episode ID
+                                // entryFile might be "123" or "123.mp4"
+                                entryFile == "${ep.id}.${ep.containerExtension}" || entryFile == "${ep.id}" || entryFile.startsWith("${ep.id}.")
+                            }
+                            if (foundEpisode != null) break
+                        }
+
+                        if (foundEpisode != null) {
+                            activeEpisode = foundEpisode
+                            selectedSeasonNum = foundEpisode.season
+                        }
+                     }
+                 }
             }
 
         } catch (e: Exception) {
@@ -93,18 +125,41 @@ fun DetailScreen(
         }
     }
 
+    if (showOverwriteDialog) {
+        AlertDialog(
+            onDismissRequest = { showOverwriteDialog = false },
+            title = { Text("Overwrite current Playback?") },
+            text = { Text("Starting this episode will overwrite your current progress in another episode.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showOverwriteDialog = false
+                        pendingPlayUrl?.let { url ->
+                            onPlay(url, 0L)
+                        }
+                    }
+                ) {
+                    Text("Yes, Overwrite")
+                }
+            },
+            dismissButton = {
+                Button(onClick = { showOverwriteDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     Scaffold(
         floatingActionButton = {
             if (type == "movie" && !isLoading) {
+                val resumeTime = playbackEntry?.position?.times(1000)?.toLong() ?: 0L
                 FloatingActionButton(onClick = {
                     val rawUrl = "${NetworkClient.xtreamUrl}/movie/${NetworkClient.username}/${NetworkClient.password}/$id.mkv"
                     val encodedUrl = URLEncoder.encode(rawUrl, StandardCharsets.UTF_8.toString())
-                    onPlay(encodedUrl)
-
-                    // TODO start Stream on 00:00:00 or on given seconds from Playback Entry
+                    onPlay(encodedUrl, resumeTime)
                 }) {
-                    // TODO Text = "Resume" if current Stream is in Watchlist
-                    Text("Play")
+                    Text(if (resumeTime > 0) "Resume" else "Play")
                 }
             }
         }
@@ -189,7 +244,31 @@ fun DetailScreen(
                     }
 
                     if (type == "series") {
-                        // TODO if Stream has Playback Entry (is in Watchlist) add a Resume Button with Episode and Timestamp
+                        if (activeEpisode != null && playbackEntry != null) {
+                            val posSeconds = playbackEntry?.position?.toLong() ?: 0L
+                            val playbackPositionMs = playbackEntry?.position?.times(1000)?.toLong() ?: 0L
+                            val hours = posSeconds / 3600
+                            val minutes = (posSeconds % 3600) / 60
+                            val seconds = posSeconds % 60
+                            val timeString = if (hours > 0) {
+                                String.format("%02d:%02d:%02d", hours, minutes, seconds)
+                            } else {
+                                String.format("%02d:%02d", minutes, seconds)
+                            }
+
+                            Button(
+                                onClick = {
+                                    val ep = activeEpisode!!
+                                    val rawUrl = "${NetworkClient.xtreamUrl}/series/${NetworkClient.username}/${NetworkClient.password}/${ep.id}.${ep.containerExtension}"
+                                    val encodedUrl = URLEncoder.encode(rawUrl, StandardCharsets.UTF_8.toString())
+                                    onPlay(encodedUrl, playbackPositionMs)
+                                },
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                            ) {
+                                Text("Resume S${activeEpisode!!.season}E${activeEpisode!!.episodeNum} $timeString")
+                            }
+                        }
+
                         Spacer(modifier = Modifier.height(24.dp))
                         Text("Seasons", style = MaterialTheme.typography.titleLarge)
 
@@ -213,7 +292,8 @@ fun DetailScreen(
 
                         val currentEpisodes = episodesMap[selectedSeasonNum.toString()] ?: emptyList()
                         currentEpisodes.forEach { ep ->
-                            // TODO Add to watchlist on click
+                            val isResumeEpisode = activeEpisode?.id == ep.id
+
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -221,8 +301,20 @@ fun DetailScreen(
                                     .clickable {
                                          val rawUrl = "${NetworkClient.xtreamUrl}/series/${NetworkClient.username}/${NetworkClient.password}/${ep.id}.${ep.containerExtension}"
                                          val encodedUrl = URLEncoder.encode(rawUrl, StandardCharsets.UTF_8.toString())
-                                         onPlay(encodedUrl)
-                                    }
+
+                                         if (activeEpisode != null && activeEpisode!!.id != ep.id) {
+                                             pendingPlayUrl = encodedUrl
+                                             showOverwriteDialog = true
+                                         } else if (activeEpisode != null && activeEpisode!!.id == ep.id) {
+                                             // Resume same episode
+                                             val playbackPositionMs = playbackEntry?.position?.times(1000)?.toLong() ?: 0L
+                                             onPlay(encodedUrl, playbackPositionMs)
+                                         } else {
+                                             // New start
+                                             onPlay(encodedUrl, 0L)
+                                         }
+                                    },
+                                border = if (isResumeEpisode) BorderStroke(2.dp, Color.Blue) else null
                             ) {
                                 Text(
                                     text = "${ep.episodeNum}. ${ep.title}",

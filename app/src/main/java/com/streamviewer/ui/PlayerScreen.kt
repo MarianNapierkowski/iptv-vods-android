@@ -21,7 +21,7 @@ import androidx.media3.ui.PlayerView
 
 @OptIn(UnstableApi::class)
 @Composable
-fun PlayerScreen(url: String, onBack: () -> Unit) {
+fun PlayerScreen(url: String, startTime: Long = 0, onBack: () -> Unit) {
     val context = LocalContext.current
 
     // Create ExoPlayer instance
@@ -36,6 +36,9 @@ fun PlayerScreen(url: String, onBack: () -> Unit) {
         if (url.isNotEmpty()) {
             val mediaItem = MediaItem.fromUri(Uri.parse(url))
             exoPlayer.setMediaItem(mediaItem)
+            if (startTime > 0) {
+                exoPlayer.seekTo(startTime)
+            }
             exoPlayer.prepare()
         }
     }
