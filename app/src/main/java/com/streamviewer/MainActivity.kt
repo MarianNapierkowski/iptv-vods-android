@@ -72,9 +72,6 @@ fun StreamViewerApp() {
                 type = type,
                 id = id,
                 onPlay = { url ->
-                    // url might need to be encoded if passed as param,
-                    // or we pass parameters to player
-                    // For simplicity, we assume we pass necessary IDs to player to reconstruct URL
                     navController.navigate("player?url=$url")
                 },
                 onBack = { navController.popBackStack() }

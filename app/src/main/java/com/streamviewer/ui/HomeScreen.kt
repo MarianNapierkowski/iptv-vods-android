@@ -16,11 +16,9 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.streamviewer.api.NetworkClient
 import com.streamviewer.data.StreamEntry
-import kotlinx.coroutines.launch
 
 // TODO Add Search
-// TODO Add "View All" Button for each Category -> Opens new Screen, dedicated to that Category
-// TODO Add Watchlist and Favorites
+// TODO Add "View All" Button for each Category -> Only Entries of that Category are rendered
 
 @Composable
 fun HomeScreen(onStreamSelected: (Int, String) -> Unit, onSettingsClick: () -> Unit) {
@@ -29,7 +27,6 @@ fun HomeScreen(onStreamSelected: (Int, String) -> Unit, onSettingsClick: () -> U
     var watchlist by remember { mutableStateOf<List<StreamEntry>>(emptyList()) }
     var favorites by remember { mutableStateOf<List<StreamEntry>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
 
     LaunchedEffect(selectedType) {
         isLoading = true
@@ -43,10 +40,10 @@ fun HomeScreen(onStreamSelected: (Int, String) -> Unit, onSettingsClick: () -> U
             // Load Watchlist
             try {
                 val watchlistResp = NetworkClient.getApi().getWatchlist(selectedType)
-                if (watchlistResp.isSuccessful) {
-                    watchlist = watchlistResp.body()?.map { it.toStreamEntry() } ?: emptyList()
+                watchlist = if (watchlistResp.isSuccessful) {
+                    watchlistResp.body()?.map { it.toStreamEntry() } ?: emptyList()
                 } else {
-                    watchlist = emptyList()
+                    emptyList()
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -83,12 +80,12 @@ fun HomeScreen(onStreamSelected: (Int, String) -> Unit, onSettingsClick: () -> U
         ) {
             Button(
                 onClick = { selectedType = "movies" },
-                enabled = selectedType == "movies"
+                enabled = selectedType != "movies"
             ) { Text("Movies") }
             Spacer(modifier = Modifier.width(16.dp))
             Button(
                 onClick = { selectedType = "series" },
-                enabled = selectedType == "series"
+                enabled = selectedType != "series"
             ) { Text("Series") }
 
             Spacer(modifier = Modifier.weight(1f))
