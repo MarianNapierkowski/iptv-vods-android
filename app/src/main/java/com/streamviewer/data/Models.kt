@@ -119,8 +119,61 @@ data class PlaybackEntry(
     val position: Double?,
     val duration: Double?,
     val updated_at: String?,
-    val file: String?
-)
+    val file: String?,
+    // Extended fields for UI display
+    val cover: String? = null,
+    val stream_icon: String? = null,
+    val title: String? = null,
+    val year: String? = null,
+    val rating: Any? = null,
+    val plot: String? = null,
+    val cast: String? = null,
+    val stream_type: String? = null,
+    val stream_id: Int? = null,
+    val series_id: Int? = null
+) {
+    fun toStreamEntry(): StreamEntry {
+        // Parse ID from media_key if needed (e.g. "movie:123")
+        var sId = stream_id
+        var serId = series_id
+
+        if (sId == null && serId == null) {
+            val parts = media_key.split(":")
+            if (parts.size == 2) {
+                val type = parts[0]
+                val id = parts[1].toIntOrNull()
+                if (type == "movie") {
+                    sId = id
+                } else if (type == "series") {
+                    serId = id
+                }
+            }
+        }
+
+        return StreamEntry(
+            stream_id = sId,
+            series_id = serId,
+            num = null,
+            name = name ?: "",
+            title = title,
+            year = year,
+            stream_type = stream_type,
+            stream_icon = stream_icon,
+            cover = cover,
+            rating = rating,
+            added = updated_at,
+            category_id = null,
+            container_extension = null,
+            custom_sid = null,
+            direct_source = null,
+            plot = plot,
+            cast = cast,
+            director = null,
+            genre = null,
+            releaseDate = null
+        )
+    }
+}
 
 data class PlaybackSaveRequest(
     val media_key: String,

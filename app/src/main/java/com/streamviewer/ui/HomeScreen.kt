@@ -26,16 +26,46 @@ import kotlinx.coroutines.launch
 fun HomeScreen(onStreamSelected: (Int, String) -> Unit, onSettingsClick: () -> Unit) {
     var selectedType by remember { mutableStateOf("movies") } // "movies" or "series"
     var categories by remember { mutableStateOf<Map<String, List<StreamEntry>>>(emptyMap()) }
+    var watchlist by remember { mutableStateOf<List<StreamEntry>>(emptyList()) }
+    var favorites by remember { mutableStateOf<List<StreamEntry>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(selectedType) {
         isLoading = true
         try {
-            val response = NetworkClient.getApi().loadCategories(selectedType)
-            if (response.isSuccessful) {
-                categories = response.body() ?: emptyMap()
+            // Load Categories
+            val categoriesResp = NetworkClient.getApi().loadCategories(selectedType)
+            if (categoriesResp.isSuccessful) {
+                categories = categoriesResp.body() ?: emptyMap()
             }
+
+            // Load Watchlist
+            try {
+                val watchlistResp = NetworkClient.getApi().getWatchlist(selectedType)
+                if (watchlistResp.isSuccessful) {
+                    watchlist = watchlistResp.body()?.map { it.toStreamEntry() } ?: emptyList()
+                } else {
+                    watchlist = emptyList()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                watchlist = emptyList()
+            }
+
+            // Load Favorites
+            try {
+                val favoritesResp = NetworkClient.getApi().getFavorites(selectedType)
+                if (favoritesResp.isSuccessful) {
+                    favorites = favoritesResp.body()?.map { it.toStreamEntry() } ?: emptyList()
+                } else {
+                    favorites = emptyList()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                favorites = emptyList()
+            }
+
         } catch (e: Exception) {
             e.printStackTrace()
         } finally {
@@ -77,6 +107,49 @@ fun HomeScreen(onStreamSelected: (Int, String) -> Unit, onSettingsClick: () -> U
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 16.dp)
             ) {
+                // Watchlist Section
+                if (watchlist.isNotEmpty()) {
+                    item {
+                        Text(
+                            text = "Watchlist",
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
+                        )
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(watchlist) { stream ->
+                                StreamCard(stream = stream, onClick = {
+                                    onStreamSelected(stream.getId(), if(selectedType == "series") "series" else "movie")
+                                })
+                            }
+                        }
+                    }
+                }
+
+                // Favorites Section
+                if (favorites.isNotEmpty()) {
+                    item {
+                        Text(
+                            text = "Favorites",
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
+                        )
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(favorites) { stream ->
+                                StreamCard(stream = stream, onClick = {
+                                    onStreamSelected(stream.getId(), if(selectedType == "series") "series" else "movie")
+                                })
+                            }
+                        }
+                    }
+                }
+
+                // Categories
                 categories.forEach { (catName, streams) ->
                     item {
                         Text(
