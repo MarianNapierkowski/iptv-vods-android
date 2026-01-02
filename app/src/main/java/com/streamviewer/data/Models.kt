@@ -47,35 +47,27 @@ data class Category(
 
 // The server returns a Map<String, List<StreamEntry>> for categories
 data class StreamEntry(
-    val stream_id: Int?, // Movies have this
-    val series_id: Int?, // Series have this
-    val num: Any?, // Can be string or int
-    val name: String,
-    val title: String?, // Sometimes used
-    val year: String?, // Sometimes present
-    val stream_type: String?,
-    val stream_icon: String?, // Movie icon
-    val cover: String?, // General cover
-    val rating: Any?, // Can be 5.0 or "5"
     val added: String?,
+    val cast: String?,
     val category_id: String?,
     val container_extension: String?,
-    val custom_sid: String?,
-    val direct_source: String?,
-
-    // Details (often null in lists)
-    val plot: String?,
-    val cast: String?,
+    val cover: String?, // General cover
     val director: String?,
-    val genre: String?,
+    val name: String,
+    val num: Any?, // Can be string or int
+    val plot: String?,
+    val rating: Any?, // Can be 5.0 or "5"
     val releaseDate: String?,
+    val series_id: Int?, // Series have this
+    val stream_id: Int?, // Movies have this
+    val stream_type: String?,
 ) {
     fun getId(): Int {
         return stream_id ?: series_id ?: 0
     }
 
     fun getImageUrl(): String {
-        return cover ?: stream_icon ?: ""
+        return cover ?: ""
     }
 }
 
@@ -119,8 +111,52 @@ data class PlaybackEntry(
     val position: Double?,
     val duration: Double?,
     val updated_at: String?,
-    val file: String?
-)
+    val cover: String? = null,
+    val rating: Any? = null,
+    val plot: String? = null,
+    val cast: String? = null,
+    val stream_type: String? = null,
+    val stream_id: Int? = null,
+    val series_id: Int? = null,
+    val category_id: Int? = null,
+    val container_extension: String,
+    val director: String?
+) {
+    fun toStreamEntry(): StreamEntry {
+        var sId = stream_id
+        var serId = series_id
+
+        if (sId == null && serId == null) {
+            val parts = media_key.split(":")
+            if (parts.size == 2) {
+                val type = parts[0]
+                val id = parts[1].toIntOrNull()
+                if (type == "movies") {
+                    sId = id
+                } else if (type == "series") {
+                    serId = id
+                }
+            }
+        }
+
+        return StreamEntry(
+            stream_id = sId,
+            series_id = serId,
+            num = null,
+            name = name ?: "",
+            stream_type = stream_type,
+            cover = cover,
+            rating = rating,
+            added = updated_at,
+            category_id = category_id.toString(),
+            container_extension = container_extension,
+            plot = plot,
+            cast = cast,
+            director = director,
+            releaseDate = updated_at,
+        )
+    }
+}
 
 data class PlaybackSaveRequest(
     val media_key: String,
