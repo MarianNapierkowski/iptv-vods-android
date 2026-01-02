@@ -18,10 +18,10 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun LoginScreen(onLoginSuccess: () -> Unit) {
-    var serverUrl by remember { mutableStateOf("http://192.168.0.177:5000") }
-    var username by remember { mutableStateOf("zko4dqjgmg") }
-    var password by remember { mutableStateOf("53f3cd892599") }
-    var xtreamUrl by remember { mutableStateOf("http://line.smurfmarkt.tv") }
+    var serverUrl by remember { mutableStateOf(NetworkClient.baseUrl) }
+    var username by remember { mutableStateOf(NetworkClient.username ?: "") }
+    var password by remember { mutableStateOf(NetworkClient.password ?: "") }
+    var xtreamUrl by remember { mutableStateOf(NetworkClient.xtreamUrl ?: "") }
 
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
