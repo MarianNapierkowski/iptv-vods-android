@@ -71,21 +71,25 @@ fun StreamViewerApp() {
             DetailScreen(
                 type = type,
                 id = id,
-                onPlay = { url ->
+                onPlay = { url, startTime ->
                     // url might need to be encoded if passed as param,
                     // or we pass parameters to player
                     // For simplicity, we assume we pass necessary IDs to player to reconstruct URL
-                    navController.navigate("player?url=$url")
+                    navController.navigate("player?url=$url&startTime=$startTime")
                 },
                 onBack = { navController.popBackStack() }
             )
         }
         composable(
-            "player?url={url}",
-            arguments = listOf(navArgument("url") { type = NavType.StringType })
+            "player?url={url}&startTime={startTime}",
+            arguments = listOf(
+                navArgument("url") { type = NavType.StringType },
+                navArgument("startTime") { type = NavType.LongType; defaultValue = 0L }
+            )
         ) { backStackEntry ->
             val url = backStackEntry.arguments?.getString("url") ?: ""
-            PlayerScreen(url = url, onBack = { navController.popBackStack() })
+            val startTime = backStackEntry.arguments?.getLong("startTime") ?: 0L
+            PlayerScreen(url = url, startTime = startTime, onBack = { navController.popBackStack() })
         }
     }
 }
